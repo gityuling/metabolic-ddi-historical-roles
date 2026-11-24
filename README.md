@@ -1,5 +1,7 @@
 # Historical Drug Roles and Molecular Structure for Predicting Metabolic Drug–Drug Interactions
 
+Download the [training and evaluation source archive (v1.0.1)](https://github.com/gityuling/metabolic-ddi-historical-roles/releases/download/v1.0/metabolic-ddi-source-v1.0.1.zip) and extract it before following the commands below. The [benchmark data and predictions](https://doi.org/10.5281/zenodo.24492415) are version 1.0.
+
 ## Verify the paper's main comparison
 
 With Python 3.10 or later, install the evaluation dependencies and point the verifier at the companion benchmark ZIP. It checks the mean and sample SD of all twelve four-class accuracies and the per-seed opposite-direction success rates from the original predictions. The optional plot uses percentages.
@@ -27,6 +29,28 @@ Training additionally uses RDKit, scikit-learn, SciPy, PyTorch with CUDA, PyTorc
 
 1. Dataset 1: run each of `neighbors.py`, `latent.py` and `kernel.py` under `$NM` twice, with the arguments `prepare` then `test`. Run `python "$MC/metddi_matched/run.py"` for MFPs and the full model. Run `python "$MC/tokens.py"` then `python "$MC/iamv_extended/run.py"` for IAMV-DDI.
 2. Datasets 2 and 3: for each target folder (`$MC/event_medium_native` or `$MC/mecddi_native`), run `python "$MC/event_medium_native/run_event.py" METHOD TARGET_FOLDER` with METHOD taking `tokens`, `mfps`, `graph` and `iamv` in turn. Run the target folder's `score_event.py` or `score_mecddi.py` to apply the structural fallback and score the predictions.
-3. For the MeTDDI baseline use its [released code](https://github.com/LabWeng/MeTDDI) in `$NM/final_suite/MeTDDI/` and its original `preprocessed_drug_info.npy` in `$NM/final_suite/met_assets/`. Use a separate TensorFlow environment (study versions: TensorFlow 2.22.0rc1 and tf-keras 2.22.0rc0, legacy Keras enabled). Run `python "$MC/metddi_native/train_matched.py" SEED` for Dataset 1. For the other datasets run `python "$MC/metddi_native/prepare.py"`, then `python "$MC/metddi_native/train.py" DATASET --seed SEED`, where DATASET is the target folder name. Use seeds 0–4.
+3. For the MeTDDI baseline use its [released code](https://github.com/LabWeng/MeTDDI) in `$NM/final_suite/MeTDDI/` and its original `preprocessed_drug_info.npy` in `$NM/final_suite/met_assets/`. Use a separate TensorFlow environment (study versions: TensorFlow 2.22.0rc1 and tf-keras 2.22.0rc0, legacy Keras enabled). For Dataset 1, follow the preparation and one-batch check below, then run `python "$MC/metddi_native/train_matched.py" SEED`. For the other datasets run `python "$MC/metddi_native/prepare.py"`, then `python "$MC/metddi_native/train.py" DATASET --seed SEED`, where DATASET is the target folder name. Use seeds 0–4.
 
 The fit scripts are supplied for inspection and reruns with the original upstream inputs. The CPU verification uses the frozen manuscript predictions and does not require a GPU or pretrained weights.
+
+## Dataset 1 MeTDDI refit from a clean extraction
+
+Use the three original MeTDDI UnseenDDIs split CSVs in `MFP-DDI/data/`. Place the upstream MeTDDI checkout (commit `9f59109c2252b5d5aaea5c49c7275795d4fef166`) and the decompressed UnseenDDIs molecular graph archive at the paths in step 3 above. Start in the extracted source root. In the RDKit environment run:
+
+```sh
+MC=manuscript/pharmaceutics/analysis/main_comparison
+python "$MC/prepare_metddi.py"
+python "$MC/metddi_native/prepare_matched.py"
+```
+
+The second command checks the ordered split against the published uncompressed CSV hash, checks the upstream graph archive, and writes `metddi_matched/report.json` under the main comparison directory and `metddi_matched/graph_keys.json` under `metddi_native/`. It maps all 1,409 canonical molecular identifiers to the original graph keys. Run it after the last command that rebuilds the manifest.
+
+In the GPU TensorFlow environment, from the same source root:
+
+```sh
+export TF_USE_LEGACY_KERAS=1
+MC=manuscript/pharmaceutics/analysis/main_comparison
+python "$MC/metddi_native/train_matched.py" 0 --smoke-test
+```
+
+This checks all 16 model inputs and the labels against the original loader on a fixed sample and performs one optimizer update without saving weights. Omit `--smoke-test` and run seeds 0 through 4 for full training.
